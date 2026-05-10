@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-05-10
+
+### Fixed
+
+- The overlay component would silently render empty in some host apps
+  even though the router macro had been called and the route was
+  reachable. Root cause: the macro's `Application.put_env(:demo_director,
+  :mount_path, ...)` ran inline at compile time, which writes to
+  whichever BEAM is doing the compile. During Mix-driven workflows
+  (initial `mix phx.server`, fresh-clone `mix setup` flows, some hot
+  reloads) that's often a short-lived compiler subprocess whose env
+  dies before the dev server's runtime BEAM ever sees it — so the
+  overlay component looked up `mount_path` at runtime, found nil, and
+  rendered empty markup. Macro now computes the full scoped path at
+  compile time (where `Phoenix.Router.scoped_path/2` works), bakes it
+  into a module attribute, and registers it via an `@on_load` callback
+  that fires every time the router module is loaded into a BEAM. Cold
+  boot, hot reload, code purge + reload — all paths converge on a
+  registered runtime env. README troubleshooting section adds the
+  `config :demo_director, mount_path: "/path"` escape hatch for
+  unusual release-build / umbrella-app setups where `@on_load` doesn't
+  fire as expected.
+
 ## [0.1.4] - 2026-05-10
 
 ### Changed

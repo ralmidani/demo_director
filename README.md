@@ -420,6 +420,23 @@ macro is mounted under a non-`:browser`-piped scope. The static asset
 plug must NOT pass through `protect_from_forgery` — the playback POST is
 cross-origin from the agent's perspective and CSRF will reject it.
 
+**Overlay component renders empty even though the route exists.**
+The overlay only renders when `Application.get_env(:demo_director,
+:mount_path)` is set. The router macro registers it via an `@on_load`
+callback baked into your router module, which fires on every module
+load. If the env still ends up nil at runtime — usually because of an
+unusual release-build or umbrella-app setup that strips beam metadata
+— the safe escape hatch is to set the path explicitly:
+
+```elixir
+# config/dev.exs
+config :demo_director, mount_path: "/dev/demo-director"
+```
+
+If you ever see this in vanilla `mix phx.server`, please open an issue
+— the macro is supposed to make this Just Work, and the workaround
+above shouldn't be necessary.
+
 **`/director/socket` 404s in the browser console.**
 Add the playback socket to your endpoint, alongside the existing
 `Phoenix.LiveView.Socket`:

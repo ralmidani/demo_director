@@ -45,13 +45,31 @@ defmodule DemoDirector.Router do
   """
   defmacro demo_director(path \\ @default_path) do
     quote bind_quoted: [path: path] do
-      Application.put_env(
-        :demo_director,
-        :mount_path,
-        Phoenix.Router.scoped_path(__MODULE__, path)
-      )
-
       forward(path, DemoDirector.Plug.Static)
+
+      # Compute the full scoped path at compile time (where
+      # `Phoenix.Router.scoped_path/2` works — it reads scope info via
+      # `Module.get_attribute/2`), bake it into a module attribute,
+      # then register it at module-load time via `@on_load`.
+      #
+      # Why not call `Application.put_env` inline? It would run at
+      # compile time, writing to whichever BEAM is doing the compile.
+      # During Mix-driven workflows that's often a short-lived compiler
+      # subprocess whose env dies before the dev server's runtime BEAM
+      # ever sees it — so the overlay component would find
+      # `mount_path: nil` at runtime and render empty.
+      #
+      # `@on_load` runs every time the router module is loaded into a
+      # BEAM (cold boot, hot reload, code purge + reload), so the env
+      # is always present at runtime regardless of how the router got
+      # compiled.
+      @demo_director_full_path Phoenix.Router.scoped_path(__MODULE__, path)
+      @on_load :__demo_director_register_mount_path__
+
+      def __demo_director_register_mount_path__ do
+        Application.put_env(:demo_director, :mount_path, @demo_director_full_path)
+        :ok
+      end
     end
   end
 end
