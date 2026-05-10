@@ -59,6 +59,7 @@ defmodule DemoDirector.Components do
           id={"#{@id_prefix}-subtitle"}
           class="demo-director__subtitle"
           aria-live="polite"
+          dir="auto"
           data-dd-socket={@socket_path}
           data-dd-mount={@mount_path}
           hidden

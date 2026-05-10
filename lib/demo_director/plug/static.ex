@@ -42,6 +42,10 @@ defmodule DemoDirector.Plug.Static do
     DemoDirector.Plug.Play.call(conn, opts)
   end
 
+  def call(%Plug.Conn{path_info: []} = conn, %{index: opts}) do
+    DemoDirector.Plug.Index.call(conn, opts)
+  end
+
   def call(%Plug.Conn{path_info: ["demos" | _]} = conn, %{index: opts}) do
     DemoDirector.Plug.Index.call(conn, opts)
   end

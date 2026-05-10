@@ -9,7 +9,12 @@ if Code.ensure_loaded?(Igniter) do
 
         mix igniter.install demo_director
 
-    The task does three things:
+    Assumes the host app already has a working Phoenix LiveView setup
+    (a `Phoenix.LiveView.Socket` declaration in the endpoint, a
+    router, and the standard layouts). The installer doesn't
+    bootstrap LiveView from scratch.
+
+    The task does four things:
 
       1. Adds `import DemoDirector.Router` and a
          `demo_director "/demo-director"` macro call inside an
@@ -17,19 +22,30 @@ if Code.ensure_loaded?(Igniter) do
          block in your router (creating the block if absent). The
          scope is *not* piped through `:browser` because the playback
          POST endpoint must bypass `protect_from_forgery`.
-      2. Appends a marked instructions section to `AGENTS.md` (always)
+      2. Adds a `socket "/director/socket", DemoDirector.PlaybackSocket`
+         declaration to your endpoint, after the existing
+         `Phoenix.LiveView.Socket` line.
+      3. Adds `config :demo_director, pubsub: <OtpApp>.PubSub` to
+         `config/dev.exs` (using the conventional PubSub name from
+         `mix phx.new`; if your PubSub server is named differently,
+         edit the value after install).
+      4. Appends a marked instructions section to `AGENTS.md` (always)
          and to `CLAUDE.md` (only if it already exists, or if a
          `.claude/` directory is present).
-      3. Prints a post-install message reminding you of the remaining
-         manual steps: adding the playback socket to your endpoint,
-         setting the `:pubsub` config, and rendering the overlay
-         component in your layout. We don't auto-edit those because
-         endpoint and layout structure vary too much across apps.
+
+    One manual step remains — rendering the overlay component in
+    your dev-time root layout — because root layouts are HEEx, not
+    Elixir AST, so editing them programmatically means string-level
+    surgery on a frequently-customized file. The post-install
+    notice prints the exact line to paste.
 
     Sections written to `AGENTS.md` / `CLAUDE.md` are wrapped in
     `<!-- BEGIN demo_director -->` / `<!-- END demo_director -->`
     markers, so re-running the task replaces the section in place
-    rather than appending a duplicate.
+    rather than appending a duplicate. Router and endpoint edits
+    are similarly idempotent — the task searches for an existing
+    `import DemoDirector.Router` / `DemoDirector.PlaybackSocket`
+    before adding.
     """
 
     use Igniter.Mix.Task
@@ -50,6 +66,8 @@ if Code.ensure_loaded?(Igniter) do
     def igniter(igniter) do
       igniter
       |> install_router_macro()
+      |> install_endpoint_socket()
+      |> install_pubsub_config()
       |> install_agent_docs()
       |> add_layout_reminder()
     end
@@ -65,23 +83,28 @@ if Code.ensure_loaded?(Igniter) do
 
       if router do
         Igniter.Project.Module.find_and_update_module!(igniter, router, fn zipper ->
-          # We just append the import + macro call inside the router
-          # module body. Igniter's de-dup keeps this idempotent on
-          # re-runs.
-          zipper
-          |> Igniter.Code.Common.add_code(
-            """
-            if Application.compile_env(:#{otp_app()}, :dev_routes) do
-              import DemoDirector.Router
+          # Skip if `import DemoDirector.Router` is already present in the
+          # router — keeps re-runs idempotent.
+          case Igniter.Code.Common.move_to(zipper, &demo_director_imported?/1) do
+            {:ok, _} ->
+              {:ok, zipper}
 
-              scope "/dev" do
-                demo_director "#{@router_path}"
-              end
-            end
-            """,
-            placement: :after
-          )
-          |> then(&{:ok, &1})
+            :error ->
+              {:ok,
+               Igniter.Code.Common.add_code(
+                 zipper,
+                 """
+                 if Application.compile_env(:#{otp_app()}, :dev_routes) do
+                   import DemoDirector.Router
+
+                   scope "/dev" do
+                     demo_director "#{@router_path}"
+                   end
+                 end
+                 """,
+                 placement: :after
+               )}
+          end
         end)
       else
         Igniter.add_warning(igniter, """
@@ -96,6 +119,90 @@ if Code.ensure_loaded?(Igniter) do
             end
         """)
       end
+    end
+
+    defp demo_director_imported?(zipper) do
+      Igniter.Code.Function.function_call?(zipper, :import, 1) and
+        Igniter.Code.Function.argument_equals?(zipper, 0, DemoDirector.Router)
+    end
+
+    # --- endpoint socket ---------------------------------------------------
+
+    @socket_example """
+        socket "/director/socket", DemoDirector.PlaybackSocket,
+          websocket: true,
+          longpoll: false
+    """
+
+    defp install_endpoint_socket(igniter) do
+      {igniter, endpoint} =
+        Igniter.Libs.Phoenix.select_endpoint(
+          igniter,
+          nil,
+          "Which endpoint should serve demo_director?"
+        )
+
+      if endpoint do
+        add_socket_to_endpoint(igniter, endpoint)
+      else
+        Igniter.add_warning(igniter, """
+        No endpoint found. Add the playback socket manually:
+
+        #{@socket_example}
+        """)
+      end
+    end
+
+    defp add_socket_to_endpoint(igniter, endpoint) do
+      Igniter.Project.Module.find_and_update_module!(igniter, endpoint, fn zipper ->
+        with :error <- Igniter.Code.Common.move_to(zipper, &playback_socket?/1),
+             {:ok, zipper} <- Igniter.Code.Common.move_to(zipper, &live_view_socket?/1) do
+          {:ok,
+           Igniter.Code.Common.add_code(
+             zipper,
+             """
+             socket "/director/socket", DemoDirector.PlaybackSocket,
+               websocket: true,
+               longpoll: false
+             """,
+             placement: :after
+           )}
+        else
+          {:ok, _} ->
+            {:ok, zipper}
+
+          :error ->
+            {:warning,
+             """
+             Could not find a `socket "/live", Phoenix.LiveView.Socket` declaration in `#{inspect(endpoint)}`.
+             demo_director assumes a working Phoenix LiveView setup. Please add the playback socket manually:
+
+             #{@socket_example}
+             """}
+        end
+      end)
+    end
+
+    defp playback_socket?(zipper) do
+      Igniter.Code.Function.function_call?(zipper, :socket) and
+        Igniter.Code.Function.argument_equals?(zipper, 1, DemoDirector.PlaybackSocket)
+    end
+
+    defp live_view_socket?(zipper) do
+      Igniter.Code.Function.function_call?(zipper, :socket) and
+        Igniter.Code.Function.argument_equals?(zipper, 1, Phoenix.LiveView.Socket)
+    end
+
+    # --- pubsub config -----------------------------------------------------
+
+    defp install_pubsub_config(igniter) do
+      Igniter.Project.Config.configure(
+        igniter,
+        "dev.exs",
+        :demo_director,
+        [:pubsub],
+        {:code, Sourceror.parse_string!("#{module_name(otp_app())}.PubSub")}
+      )
     end
 
     # --- agent docs --------------------------------------------------------
@@ -123,7 +230,9 @@ if Code.ensure_loaded?(Igniter) do
             contents <> "\n"
           end
 
-        Igniter.create_or_update_file(igniter, filename, new_text, fn _ -> new_text end)
+        Igniter.create_or_update_file(igniter, filename, new_text, fn source ->
+          Rewrite.Source.update(source, :content, new_text)
+        end)
       else
         igniter
       end
@@ -152,28 +261,19 @@ if Code.ensure_loaded?(Igniter) do
 
     defp add_layout_reminder(igniter) do
       Igniter.add_notice(igniter, """
-      demo_director is partially installed. Three steps remain — they
-      depend on your endpoint and layout structure, so we don't auto-edit:
+      demo_director is almost installed. One step remains — it stays
+      manual because root layouts are HEEx, not Elixir, so editing
+      them programmatically would mean string-level surgery against a
+      file users frequently customize:
 
-      1. Add the playback socket to your endpoint
-         (`lib/#{otp_app()}_web/endpoint.ex`), alongside the existing
-         Phoenix.LiveView.Socket:
+          Render the overlay in your dev-time root layout
+          (`lib/#{otp_app()}_web/components/layouts/root.html.heex`):
 
-             socket "/director/socket", DemoDirector.PlaybackSocket,
-               websocket: true,
-               longpoll: false
+              <DemoDirector.Components.demo_director_overlay />
 
-      2. Configure the PubSub server (typically in `config/dev.exs`):
-
-             config :demo_director, pubsub: #{module_name(otp_app())}.PubSub
-
-      3. Render the overlay in your dev-time root layout
-         (`lib/#{otp_app()}_web/components/layouts/root.html.heex`):
-
-             <DemoDirector.Components.demo_director_overlay />
-
-      These render nothing in prod when the router macro hasn't been
-      compiled in (which is the default when :dev_routes is unset).
+      The component itself returns empty markup whenever the router
+      macro hasn't registered a mount path, so the line is safe to
+      leave inside `<body>` even in prod.
       """)
     end
 

@@ -72,6 +72,11 @@ the same actions every run.
 
 ### Add to your Phoenix app
 
+`demo_director` assumes the host app already has a working Phoenix
+LiveView setup (a `Phoenix.LiveView.Socket` declaration in the
+endpoint, a router, and the standard layouts). The installer doesn't
+bootstrap LiveView from scratch.
+
 ```elixir
 # mix.exs
 def deps do
@@ -89,9 +94,15 @@ mix deps.get
 mix igniter.install demo_director
 ```
 
-The install task wires the router macro, seeds your AGENTS.md / CLAUDE.md
-with the agent contract, and prints a reminder to add the overlay component
-to your dev-time root layout.
+The install task does four things automatically:
+
+1. Wires the router macro under an `if Application.compile_env(:my_app, :dev_routes)` block.
+2. Adds the playback socket to your endpoint, after the existing `Phoenix.LiveView.Socket`.
+3. Adds `config :demo_director, pubsub: <OtpApp>.PubSub` to `config/dev.exs` (using the conventional `mix phx.new` PubSub name; if your PubSub server is named differently, edit the value after install).
+4. Seeds `AGENTS.md` / `CLAUDE.md` with the agent contract.
+
+It then prints a reminder for the one step that stays manual: rendering
+the overlay component in your dev-time root layout.
 
 ### Or wire it up by hand
 
@@ -133,6 +144,20 @@ config :demo_director, pubsub: MyApp.PubSub
 ```heex
 <DemoDirector.Components.demo_director_overlay />
 ```
+
+This step stays manual on purpose. The other wiring lives in
+`.ex` files — Igniter can edit those via the Elixir AST and keep the
+edit idempotent across re-runs. Root layouts are HEEx, and HEEx isn't
+parsed as an AST the way Elixir is, so editing it programmatically
+means string-level surgery against a file users frequently customize
+(branding, analytics, custom font links, conditional `<body>` markup).
+The risk of corrupting a heavily-edited layout outweighed the
+convenience of auto-injecting one line. The component itself is
+already prod-safe — it returns empty markup whenever the
+`demo_director/1` router macro hasn't registered a mount path (which
+is exactly what happens when `:dev_routes` is off), so the line can
+sit unconditionally inside `<body>` and you won't see it in
+production.
 
 **5. Tag interactive elements** with `data-demo-id`:
 

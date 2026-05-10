@@ -17,7 +17,7 @@ defmodule DemoDirector.Plug.Index do
   def init(opts), do: opts
 
   @impl Plug
-  def call(%Plug.Conn{path_info: ["demos"]} = conn, _opts) do
+  def call(%Plug.Conn{path_info: path} = conn, _opts) when path in [[], ["demos"]] do
     html = render_index(DemoDirector.Demos.list(), mount_path())
 
     conn
@@ -149,40 +149,47 @@ defmodule DemoDirector.Plug.Index do
         <title>Demo Director · Saved demos</title>
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <style>
-          :root { color-scheme: light dark; }
+          :root { color-scheme: dark; }
           body {
             margin: 0;
-            background: #0f172a;
-            color: #f8fafc;
+            background: #1f0e2e;
+            color: #f5f3ff;
             font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
           }
           .td-page { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }
           .td-page__header { margin-bottom: 32px; }
-          .td-page h1 { margin: 0 0 4px; font-size: 32px; line-height: 1.2; }
+          .td-page h1 {
+            margin: 0 0 4px;
+            font-size: 32px;
+            line-height: 1.2;
+            color: #c4b5fd;
+          }
           .td-page__subhead {
             margin: 0 0 12px;
             font-size: 18px;
             font-weight: 500;
-            color: #cbd5e1;
+            color: #ddd6fe;
           }
-          .td-page__lede { margin: 0; color: #94a3b8; }
+          .td-page__lede { margin: 0; color: #a78bfa; }
           .td-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
           .td-row {
             display: flex;
             align-items: center;
             gap: 16px;
             padding: 16px 20px;
-            background: #1e293b;
+            background: #2d1b3d;
             border-radius: 12px;
+            border: 1px solid #3d2554;
           }
           .td-row__main { flex: 1; min-width: 0; }
-          .td-row__title { margin: 0 0 4px; font-size: 16px; }
-          .td-row__meta { margin: 0; color: #94a3b8; font-size: 13px; }
+          .td-row__title { margin: 0 0 4px; font-size: 16px; color: #f5f3ff; }
+          .td-row__meta { margin: 0; color: #a78bfa; font-size: 13px; }
           .td-row__meta code {
-            background: #0f172a;
+            background: #1f0e2e;
             padding: 1px 6px;
             border-radius: 4px;
             font-size: 12px;
+            color: #ddd6fe;
           }
           .td-row__play {
             border: 0;
@@ -199,14 +206,16 @@ defmodule DemoDirector.Plug.Index do
             margin-top: 24px;
             padding: 24px;
             border-radius: 12px;
-            background: #1e293b;
-            color: #94a3b8;
+            background: #2d1b3d;
+            border: 1px solid #3d2554;
+            color: #a78bfa;
           }
           .td-empty code {
-            background: #0f172a;
+            background: #1f0e2e;
             padding: 1px 6px;
             border-radius: 4px;
             font-size: 13px;
+            color: #ddd6fe;
           }
         </style>
       </head>

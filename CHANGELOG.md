@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-05-10
+
+### Added
+
+- The install task now also adds the playback socket to your
+  endpoint (after the existing `Phoenix.LiveView.Socket`
+  declaration) and writes `config :demo_director, pubsub: <OtpApp>.PubSub`
+  into `config/dev.exs`. The post-install notice shrinks from three
+  manual steps to one (the overlay-component HEEx edit), which stays
+  manual on purpose because root layouts aren't AST-editable.
+  Both new edits are idempotent — the task searches for an existing
+  `DemoDirector.PlaybackSocket` socket declaration / `:demo_director`
+  config block before adding.
+- Selector resolver in the runtime now falls back to
+  `document.querySelector` when a string isn't found via
+  `data-demo-id`. Lets demos target existing semantic ids
+  (`#vitals`), classes (`.btn-primary`), or any other CSS selector
+  the host app already has, without forcing ad-hoc `data-demo-id`
+  annotations. `data-demo-id` lookup is still tried first, so the
+  recommended idiom is unchanged.
+- `fillTyped` now dispatches a synthetic `keyup` event per character
+  alongside the existing `input` event. Hosts that listen via
+  `phx-keyup` (rather than `phx-change`) now react to typed input
+  during demo playback.
+- Demos listing page is now reachable at the bare mount path (e.g.
+  `/dev/demo-director`) in addition to the original `<mount>/demos`.
+  Both URLs render the same listing.
+- Listing-page styling switched to a purple palette (Elixir-ish
+  lavender on deep purple). The Play button stays red for contrast.
+  The demo overlay (subtitle bar, highlight ring) is intentionally
+  unchanged — it stays neutral so it works visually on any host
+  app's color scheme.
+
+### Fixed
+
+- `mix igniter.install demo_director` crashed with
+  `FunctionClauseError in Rewrite.update!/2` while seeding `AGENTS.md`
+  / `CLAUDE.md`. The install task's updater callback returned a raw
+  string instead of the `Rewrite.Source` that
+  `Igniter.create_or_update_file/4` expects from its 4th argument.
+  Updates the source's `:content` via `Rewrite.Source.update/3`.
+- The router edit was not idempotent: re-running the install task
+  appended a duplicate `if Application.compile_env(:my_app, :dev_routes)`
+  block on every run. The task now searches for an existing
+  `import DemoDirector.Router` call before adding, mirroring the
+  pattern used by the Tidewave installer.
+- Subtitle bar's text was bidi-flipped on hosts with
+  `<html dir="rtl">` — English content's punctuation could land on
+  the wrong side. Subtitle node now carries `dir="auto"` so its
+  visual direction is determined by the first strong character of
+  the subtitle text itself, regardless of the host page's direction.
+
+### Documentation
+
+- README's "Add to your Phoenix app" section notes that
+  `demo_director` assumes the host app has a working Phoenix
+  LiveView setup; the installer does not bootstrap LiveView from
+  scratch.
+- The README's manual wire-up step for the overlay component now
+  explains why that step stays manual (HEEx isn't AST-editable like
+  Elixir, so editing root layouts programmatically would be
+  string-level surgery on a frequently-customized file) and notes
+  that the component is prod-safe to leave unconditionally inside
+  `<body>` (it returns empty markup when no mount path is
+  registered). The install task's post-install notice carries the
+  same explanation in shorter form.
+
 ## [0.1.1] - 2026-05-10
 
 ### Changed

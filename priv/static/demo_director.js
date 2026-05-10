@@ -13,7 +13,19 @@
   }
 
   function findByDemoId(demoId) {
-    return document.querySelector('[data-demo-id="' + cssEscape(demoId) + '"]');
+    // Prefer explicit data-demo-id tagging; fall back to treating the
+    // string as a raw CSS selector so callers can target existing
+    // semantic ids ("#vitals"), classes (".btn-primary"), or any other
+    // querySelector input. The fallback lets demos lean on the host
+    // app's existing markup without forcing ad-hoc data-* annotations.
+    const tagged = document.querySelector('[data-demo-id="' + cssEscape(demoId) + '"]');
+    if (tagged) return tagged;
+    try {
+      return document.querySelector(demoId);
+    } catch (_e) {
+      // Malformed selector — return null instead of throwing.
+      return null;
+    }
   }
 
   function cssEscape(s) {
@@ -211,9 +223,15 @@
           resolve();
           return;
         }
-        typed += value[i++];
+        const ch = value[i++];
+        typed += ch;
         input.value = typed;
         input.dispatchEvent(new Event("input", { bubbles: true }));
+        // Some host listeners (e.g. phx-keyup) don't fire on `input`;
+        // dispatch a synthetic keyup so they re-evaluate per char.
+        input.dispatchEvent(
+          new KeyboardEvent("keyup", { bubbles: true, key: ch })
+        );
         setTimeout(step, perCharMs);
       }
       step();
