@@ -46,8 +46,8 @@ If you want a movie of your app that runs against the real DOM, use this.
 - **A router macro** — `demo_director "/director"` — that mounts the
   static-asset plug, the playback channel, and the demos listing page at
   the path of your choice (default `/demo-director`).
-- **A web demos browser** at `<mount>/demos` — lists every saved demo
-  with a Play button per row.
+- **A web demos browser** at `<mount>` (also `<mount>/demos`) — lists
+  every saved demo with a Play button per row.
 - **A Mix task** — `mix demo_director.play <name>` — replays a saved
   demo against the running dev server, navigating the browser to the
   demo's starting route if needed.
@@ -62,7 +62,7 @@ If you want a movie of your app that runs against the real DOM, use this.
    and for authoring.
 2. **Replayable, from a saved `.exs`.** Once a demo is good, save the call
    sequence to `priv/demos/<name>.exs`. Anyone can replay it from
-   `<mount>/demos` (one click) or `mix demo_director.play <name>` (one
+   `<mount>` (one click) or `mix demo_director.play <name>` (one
    command) — no agent in the loop, no LLM in the runtime path.
 
 Selectors stay stable through `data-demo-id`, so the same script produces
@@ -117,7 +117,7 @@ if Application.compile_env(:my_app, :dev_routes) do
   import DemoDirector.Router
 
   scope "/dev" do
-    demo_director "/director"
+    demo_director "/demo-director"
   end
 end
 ```
@@ -225,13 +225,13 @@ IO.puts(Enum.join(steps, "\n"))
 
 Then either:
 
-- **Open `<mount>/demos`** in your browser (e.g.
-  `http://localhost:4000/dev/director/demos`) to see every saved demo with
+- **Open `<mount>`** in your browser (e.g.
+  `http://localhost:4000/dev/demo-director`) to see every saved demo with
   a Play button. Clicking Play navigates the browser to the demo's
-  `@start_at` and runs it.
+  `@start_at` and runs it. (`<mount>/demos` works too — same listing.)
 - **Run `mix demo_director.play <name>`** from a second terminal. The task
   prints a clickable URL like
-  `http://localhost:4000/dev/director/demos/<name>/play`. Opening it
+  `http://localhost:4000/dev/demo-director/demos/<name>/play`. Opening it
   stashes the demo in `sessionStorage`, redirects to `@start_at`, and the
   overlay there picks it up on load.
 

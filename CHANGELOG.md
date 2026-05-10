@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-05-10
+
+### Documentation
+
+- README's "Replay a saved demo" section pointed at the wrong URL —
+  `/dev/director/demos` — which neither the install task nor the
+  router macro's default produce. Updated to `/dev/demo-director`,
+  matching the macro's `@default_path`. Same fix applied to the
+  `mix demo_director.play` example URL.
+- README now mentions that the listing page is reachable at the bare
+  mount path (`<mount>`) in addition to `<mount>/demos` (added in
+  0.1.2 but not surfaced in the docs).
+- README's manual wire-up section for the router macro previously
+  used `demo_director "/director"`, which conflicted with what the
+  install task generates and produced confusing URLs. Aligned to
+  `demo_director "/demo-director"` so the docs match the installer.
+
 ## [0.1.2] - 2026-05-10
 
 ### Added
