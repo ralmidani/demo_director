@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-05-10
+
+### Changed
+
+- Install task's agent-instructions template (the content that gets
+  dropped into AGENTS.md / CLAUDE.md) was still telling agents "Never
+  invent a CSS selector" and describing `data-demo-id` as mandatory.
+  The runtime has accepted raw CSS selectors as a fallback since
+  0.1.2, so the contract was a version behind reality. Template now
+  recommends picking the most stable handle that already exists in
+  the host's markup — semantic ids, form-field ids that `<label
+  for="">` points at, distinctive attributes — and to reach for
+  `data-demo-id` only when no such handle exists. `:nth-child`
+  chains and deep descendant paths are still called out as fragile.
+  Existing installations keep their old AGENTS.md / CLAUDE.md
+  content; rerun `mix igniter.install demo_director` to refresh.
+
+### Documentation
+
+- README's selector-contract section rewritten to match the template
+  change above, plus a pacing note for LiveView-driven inputs with
+  `phx-debounce` (callers should allow the debounce window plus a
+  server roundtrip — ~600–1200ms total — before reading the
+  resulting DOM state). Production-stripping section now describes
+  the deferred sandboxed demo-session primitive inline rather than
+  pointing at an internal MEMORY.md.
+
 ## [0.1.3] - 2026-05-10
 
 ### Documentation

@@ -43,7 +43,7 @@ If you want a movie of your app that runs against the real DOM, use this.
   on any element, so selectors stay stable when LiveView patches the DOM.
 - **An overlay component** — `<.demo_director_overlay />` — that renders
   the subtitle bar, highlight ring, and the package's CSS + JS.
-- **A router macro** — `demo_director "/director"` — that mounts the
+- **A router macro** — `demo_director "/demo-director"` — that mounts the
   static-asset plug, the playback channel, and the demos listing page at
   the path of your choice (default `/demo-director`).
 - **A web demos browser** at `<mount>` (also `<mount>/demos`) — lists
@@ -65,8 +65,10 @@ If you want a movie of your app that runs against the real DOM, use this.
    `<mount>` (one click) or `mix demo_director.play <name>` (one
    command) — no agent in the loop, no LLM in the runtime path.
 
-Selectors stay stable through `data-demo-id`, so the same script produces
-the same actions every run.
+Selectors are passed through to `document.querySelector` — pick whatever
+already-stable handle the host markup gives you (an id, an attribute,
+or `data-demo-id` if you need a dedicated tag). See **Selector contract**
+below for the full picture.
 
 ## Quick start
 
@@ -159,7 +161,12 @@ is exactly what happens when `:dev_routes` is off), so the line can
 sit unconditionally inside `<body>` and you won't see it in
 production.
 
-**5. Tag interactive elements** with `data-demo-id`:
+**5. (When needed) tag interactive elements** with `data-demo-id`.
+Most existing markup is already targetable — semantic ids
+(`<section id="vitals">`), form ids the labels point at, and
+attribute selectors all work. Reach for `data-demo-id` only when no
+such handle exists, or when an element would be hard to disambiguate
+otherwise:
 
 ```heex
 import DemoDirector.HEEx
@@ -168,6 +175,8 @@ import DemoDirector.HEEx
 <button {demo_id("save-prescription")}>Save</button>
 """
 ```
+
+See **Selector contract** below for the resolver order.
 
 ### Direct a demo live (with an AI agent)
 
@@ -275,14 +284,31 @@ IO.puts(Enum.join(steps, "\n"))
 
 Two things to know:
 
-1. **Every interactive element you target needs `data-demo-id`** — add it
-   in your HEEx with the `demo_id/1` helper. Don't reach for CSS
-   selectors; `data-demo-id` is the contract that lets demos survive
-   LiveView's morphdom.
+1. **Pick the most stable selector that already exists.** The runtime
+   tries `data-demo-id` first, then falls back to `document.querySelector`,
+   so any of these work as targets:
+
+       DemoDirector.click("save-prescription")          # data-demo-id
+       DemoDirector.click("#save-prescription")         # element id
+       DemoDirector.click("button[name=publish]")       # attribute selector
+
+   Prefer existing handles that the host app *already* uses for its own
+   purposes — semantic ids the sidebar nav links to, form-field ids
+   labels point at — those are the ones the host has the strongest
+   incentive to keep stable. Reach for `data-demo-id` (via the
+   `demo_id/1` HEEx helper) when no such handle exists, or when the
+   element you want to target has nothing distinctive about it (icon
+   buttons, repeated rows). Either way, don't author against
+   `:nth-child` chains or deep descendant paths — those break the
+   moment a sibling moves.
+
 2. **Pace generously.** Subtitles reveal word-by-word at ~110ms/word —
    the trailing `wait` should be at least the reveal duration plus a
    beat. `fill_typed` defaults to 35ms/char, which reads naturally; lower
    for filler text, higher for content the viewer is meant to read.
+   For LiveView-driven inputs with `phx-debounce`, allow the debounce
+   window plus a server roundtrip (~600–1200ms total) before reading
+   the resulting DOM state.
 
 Test by saving and opening `<mount>/demos`. The new entry shows up
 automatically.
@@ -299,7 +325,7 @@ mix deps.get
 mix dev
 ```
 
-Open <http://localhost:4000/dev/director/demos> and click Play on any of
+Open <http://localhost:4000/dev/demo-director> and click Play on any of
 the four bundled demos. Or run them from a second terminal:
 
 ```bash
@@ -328,14 +354,32 @@ The four demos exercise:
 | Phoenix | via `phoenix_live_view ~> 1.0` | 1.7.x, 1.8.x |
 | Phoenix.LiveView | `~> 1.0` | 1.1.x |
 | Tidewave | **optional** — only for live agent authoring; replay works without it | tested against `tidewave ~> 0.5` (specifically 0.5.6) |
-| Igniter | `~> 0.6`, optional (only used by the install task) | 0.7.x |
+| Igniter | `~> 0.6`, optional (only used by the install task) | 0.7.x, 0.8.x |
 
 ## Selector contract
 
-All helpers default to `data-demo-id` lookups via the `demo_id/1` HEEx
-helper. The agent (or human script author) should never invent a CSS
-selector — `:nth-child` and deep descendant chains are exactly what the
-convention exists to avoid. If a target lacks `data-demo-id`, add one.
+The runtime resolves targets in two passes: first as `data-demo-id`,
+then — if no match — as a raw CSS selector via
+`document.querySelector`. So all of these work:
+
+```elixir
+DemoDirector.click("save-prescription")     # data-demo-id="save-prescription"
+DemoDirector.click("#save-prescription")    # element id
+DemoDirector.click(".btn-primary")          # class
+DemoDirector.click("button[type=submit]")   # attribute
+```
+
+The package's recommendation is to pick the most stable handle that
+already exists in the host's markup — semantic ids the host already
+uses for in-page navigation or `<label for="">` are the strongest
+candidates because the host has its own reasons to keep them stable.
+Reach for `data-demo-id` (via the `demo_id/1` HEEx helper) when no
+such handle exists, or for elements that would be hard to disambiguate
+otherwise (icon buttons, repeated rows). Avoid `:nth-child` chains and
+deep descendant paths — those break the moment a sibling moves.
+
+`data-demo-id` lookup runs first, so if you tag an element specifically
+for the demo, that tag wins over any unrelated CSS selector match.
 
 ## Production stripping
 
@@ -357,8 +401,9 @@ side-effect-free.
 demo that types into a form and clicks Submit creates real records, sends
 real emails, queues real jobs. Keep the package gated behind `:dev_routes`
 (or your equivalent), and only enable it in environments where it's safe
-for forms to hit the real data layer. See `MEMORY.md` for the deferred
-plan to add a sandboxed demo-session primitive.
+for forms to hit the real data layer. A sandboxed demo-session primitive
+(transactional rollback at the end of a demo, throwaway test data) is on
+the deferred-features list.
 
 **Localhost-only playback by default.** The `<mount>/play` HTTP endpoint
 that receives broadcasts from `mix demo_director.play` rejects

@@ -25,20 +25,38 @@ in an `async` function so `await DemoDirector.wait/1` works.
 
 ### The selector contract
 
-Every interactive element you target **must** carry a `data-demo-id`
-attribute. Add it via the `demo_id/1` HEEx helper:
+The runtime resolves targets in two passes: first as `data-demo-id`,
+then — if no match — as a raw CSS selector via `document.querySelector`.
+So all of these work:
+
+```elixir
+DemoDirector.click("save-prescription")     # data-demo-id="save-prescription"
+DemoDirector.click("#save-prescription")    # element id
+DemoDirector.click(".btn-primary")          # class
+DemoDirector.click("button[type=submit]")   # attribute
+```
+
+**Pick the most stable handle that already exists in the host's
+markup** — semantic ids the host already uses for in-page navigation,
+form-field ids that `<label for="">` points at, distinctive attributes.
+Those are the ones the host has the strongest incentive to keep stable.
+
+Reach for `data-demo-id` (via the `demo_id/1` HEEx helper) when no such
+handle exists, or when the element you want to target has nothing
+distinctive about it (icon buttons, repeated rows). If you're tagging
+markup specifically for a demo and have permission from the developer,
+add it like this:
 
 ```heex
 <button {demo_id("save-prescription")}>Save</button>
 ```
 
-Renders as `<button data-demo-id="save-prescription">Save</button>`.
+`data-demo-id` lookup runs first, so a deliberately-tagged element wins
+over any unrelated CSS-selector match.
 
-**Never invent a CSS selector** — no `:nth-child`, no deep descendant
-chains, no targeting by class or by id. If a target lacks `data-demo-id`,
-ask the developer to add one (or add it yourself if they've explicitly
-delegated that). Fragile selectors are exactly what `data-demo-id` exists
-to avoid.
+**Avoid `:nth-child` chains and deep descendant paths** — those break
+the moment a sibling moves. If the only way you can target something is
+a structural selector, ask for a stable handle instead.
 
 ### A typical demo loop
 
