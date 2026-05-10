@@ -1,6 +1,9 @@
 # Demo Director
 
-> Author with Tidewave, play back in your LiveView app.
+[![Hex.pm](https://img.shields.io/hexpm/v/demo_director.svg)](https://hex.pm/packages/demo_director)
+[![Hexdocs.pm](https://img.shields.io/badge/hex-docs-blue)](https://hexdocs.pm/demo_director)
+
+> Narrated, highlighted, animated demos for Phoenix LiveView — author with Tidewave and play right in your app.
 
 `demo_director` is the loop between an AI agent and a saved product demo:
 the agent drives your Phoenix LiveView app live through

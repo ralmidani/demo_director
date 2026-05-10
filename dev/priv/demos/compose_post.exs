@@ -43,7 +43,7 @@ steps = [
   TD.wait(700),
   TD.fill_typed(
     "post-meta-input",
-    "An end-to-end walkthrough of authoring AI-driven product demos for Phoenix LiveView using DemoDirector — author with Tidewave, play back in your LiveView app."
+    "Narrated, highlighted, animated demos for Phoenix LiveView — author with Tidewave and play right in your app."
   ),
   TD.wait(1700),
 

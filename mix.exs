@@ -1,7 +1,7 @@
 defmodule DemoDirector.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
   @source_url "https://github.com/ralmidani/demo_director"
 
   def project do
@@ -48,7 +48,7 @@ defmodule DemoDirector.MixProject do
   end
 
   defp description do
-    "Author with Tidewave, play back in your LiveView app — narrated, highlighted, animated demos for Phoenix LiveView."
+    "Narrated, highlighted, animated demos for Phoenix LiveView — author with Tidewave and play right in your app."
   end
 
   defp package do
