@@ -1,62 +1,67 @@
 defmodule DemoDirector do
   @moduledoc """
-  Direct AI-driven product demos for Phoenix apps, right from your
-  Tidewave Web tab.
+  Reproducible, replayable demos for Phoenix LiveView — author
+  reusable scripts, with or without AI.
 
-  DemoDirector gives an AI agent (or, eventually, a saved script)
-  the seams to drive a Phoenix LiveView application as a guided tour:
-  subtitled explanations appear in an overlay, the next element to
-  interact with is highlighted, typing is slowed enough to read, and
-  selectors stay stable via the `data-demo-id` convention.
+  DemoDirector lets you record a narrated walkthrough of a Phoenix
+  LiveView app as a tiny Elixir script. Anyone can replay it later —
+  against the real app, against real data, with no AI in the runtime
+  path. During playback, a subtitle bar narrates word-by-word, a
+  highlight ring tracks the next element, and characters get typed
+  into form fields at a readable speed.
+
+  See [the README](readme.html) for the full integration walkthrough.
 
   ## Concept
 
-  The package is intentionally small. It does not run demos itself —
-  it produces JavaScript strings that an agent passes to Tidewave's
-  `browser_eval` (or any equivalent in-browser evaluator), plus HEEx
-  components and JS/CSS that render the demo overlay in the page.
+  The package is intentionally small. The helpers in this module
+  return JavaScript-string fragments that compose, via newline-joined
+  `IO.puts`, into a script the runtime evaluates. Author by hand or
+  let an AI agent drive the helpers live (e.g. via
+  [Tidewave Web](https://tidewave.ai)'s `browser_eval`); either way
+  the saved `.exs` is the durable artifact.
 
   Two layers:
 
-  1. **Top-level helpers in this module** (`subtitle/1`, `highlight/1`,
-     `fill/2`, `fill_typed/3`, `click/1`, `wait/1`) return JS source
-     strings. The agent drives the demo by emitting them in sequence.
-  2. **Overlay components in `DemoDirector.Components`** render
-     the subtitle bar and highlight ring. Apps mount these once on a
-     layout.
+    1. **Top-level helpers in this module** (`subtitle/1`,
+       `highlight/1`, `fill/2`, `fill_typed/3`, `click/1`, `wait/1`)
+       — each emits one JS statement.
+    2. **Overlay components in `DemoDirector.Components`** — render
+       the subtitle bar and highlight ring plus load the runtime.
+       Host apps mount this once on a dev-time root layout.
 
   ## Quick start
 
-      # In your layout (Phoenix.Component or LiveView):
+      # In your dev-time root layout:
       import DemoDirector.Components
 
       ~H\"\"\"
       <.demo_director_overlay />
       \"\"\"
 
-      # In your HEEx templates, mark interactive elements:
-      import DemoDirector.HEEx
+      # Save a demo at priv/demos/onboarding.exs:
+      # Demo: walk a new user through their first post.
+      # @start_at "/"
 
-      ~H\"\"\"
-      <button {demo_id("save-prescription")}>Save</button>
-      \"\"\"
+      alias DemoDirector, as: DD
 
-      # Then the agent emits, in sequence, things like:
-      DemoDirector.subtitle("First we'll add a diagnosis.")
-      DemoDirector.highlight("save-prescription")
-      DemoDirector.fill_typed("notes", "Patient stable.")
-      DemoDirector.click("save-prescription")
+      steps = [
+        DD.subtitle("Let's add a new post."),
+        DD.wait(1500),
+        DD.highlight("#new-post"),
+        DD.click("#new-post")
+      ]
 
-  Each return value is a JS string. The agent passes it to
-  `browser.eval(...)` (Tidewave) or any evaluator with a JavaScript
-  execution context for the page.
+      IO.puts(Enum.join(steps, "\\n"))
 
   ## Selectors
 
-  All helpers default to `data-demo-id` lookups. To target an element
-  the LiveView source doesn't yet expose, the agent should ask before
-  inventing a CSS selector — fragile selectors (`:nth-child`, deep
-  descendant chains) are exactly what `data-demo-id` exists to avoid.
+  The runtime resolves targets in two passes: `data-demo-id` first,
+  then `document.querySelector`. Prefer the most stable handle that
+  already exists in the host's markup (semantic ids, label-pointed
+  form ids, distinctive attributes). Reach for `data-demo-id` (via
+  `DemoDirector.HEEx.demo_id/1`) only when no such handle exists.
+  Avoid `:nth-child` chains and deep descendant paths.
   """
 
   @typedoc """
@@ -76,8 +81,19 @@ defmodule DemoDirector do
   Sets the subtitle overlay text.
 
   Returns JS that finds the subtitle overlay (rendered by
-  `DemoDirector.Components.demo_director_overlay/1`) and
-  updates its text content.
+  `DemoDirector.Components.demo_director_overlay/1`) and updates its
+  text content. The runtime reveals the text word-by-word at
+  ~110ms/word; pace following `wait/1` calls accordingly.
+
+  Pass `nil` to clear an active subtitle.
+
+  ## Examples
+
+      iex> DemoDirector.subtitle("Let's add a diagnosis.")
+      ~s|window.DemoDirector.subtitle("Let's add a diagnosis.");|
+
+      iex> DemoDirector.subtitle(nil)
+      "window.DemoDirector.subtitle(null);"
   """
   @spec subtitle(String.t() | nil) :: String.t()
   def subtitle(nil), do: "window.DemoDirector.subtitle(null);"
@@ -112,12 +128,25 @@ defmodule DemoDirector do
 
   @doc """
   Fills the element with the given demo-id one character at a time,
-  dispatching input events between keystrokes.
+  dispatching `input` and `keyup` events between keystrokes.
 
-  Default speed is 35ms per character. Pass `per_char_ms:` to
-  override:
+  The emitted JS is awaited so subsequent steps don't fire before
+  typing completes.
 
-      DemoDirector.fill_typed("note", "Patient stable.", per_char_ms: 60)
+  ## Options
+
+    * `:per_char_ms` — delay between simulated keystrokes
+      (default: `35`). Lower for filler text the viewer shouldn't
+      linger on; raise for content the viewer is meant to read.
+
+  ## Examples
+
+      iex> DemoDirector.fill_typed("note", "Patient stable.")
+      ~s|await window.DemoDirector.fillTyped("note", "Patient stable.", 35);|
+
+      iex> DemoDirector.fill_typed("note", "...", per_char_ms: 60)
+      ~s|await window.DemoDirector.fillTyped("note", "...", 60);|
+
   """
   @spec fill_typed(demo_id(), String.t(), type_opts()) :: String.t()
   def fill_typed(id, value, opts \\ [])
@@ -139,8 +168,16 @@ defmodule DemoDirector do
   Pauses for `ms` milliseconds. Useful between steps to let the user
   read a subtitle or watch a transition complete.
 
-  Returned JS uses `await`, so the agent must wrap its sequence in
-  an async function (Tidewave's `browser.eval` supports this).
+  Returned JS uses `await`, so an AI agent driving the demo via
+  `browser_eval` must wrap its sequence in an async function (most
+  do this automatically; Tidewave's `browser.eval` supports it). The
+  saved-script playback runtime always wraps in async.
+
+  ## Examples
+
+      iex> DemoDirector.wait(750)
+      "await new Promise(r => setTimeout(r, 750));"
+
   """
   @spec wait(pos_integer()) :: String.t()
   def wait(ms) when is_integer(ms) and ms > 0 do

@@ -3,22 +3,28 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/demo_director.svg)](https://hex.pm/packages/demo_director)
 [![Hexdocs.pm](https://img.shields.io/badge/hex-docs-blue)](https://hexdocs.pm/demo_director)
 
-> Narrated, highlighted, animated demos for Phoenix LiveView — author with Tidewave and play right in your app.
+> Reproducible, replayable demos for Phoenix LiveView — author reusable scripts, with or without AI.
 
-`demo_director` is the loop between an AI agent and a saved product demo:
-the agent drives your Phoenix LiveView app live through
-[Tidewave Web](https://tidewave.ai)'s `browser_eval` tab while you watch
-and refine; you save the resulting sequence to `priv/demos/<name>.exs`;
-your team replays it later — from a web page, from a Mix task, from a
-`<script>` tag in onboarding docs.
+`demo_director` lets you record a narrated walkthrough of your Phoenix
+LiveView app as a tiny Elixir script. Anyone can replay it later —
+against the real app, against real data, with no AI in the runtime path.
 
-The runtime drives the page hands-off: a yellow subtitle bar narrates
-what's happening word by word, a red highlight ring tracks the next
-element, and characters get typed into form fields at a readable speed.
+During playback, a yellow subtitle bar narrates what's happening word
+by word, a red highlight ring tracks the next element, and characters
+get typed into form fields at a readable speed.
 
-Tidewave is only needed during *authoring*. Replay works against any
-Phoenix LiveView app with `demo_director` installed; the runtime
-dependency is `phoenix_live_view` and nothing more.
+Two authoring paths, same output:
+
+- **By hand.** Write the `.exs` directly. The format is a flat sequence
+  of helper calls — easy to read, easy to edit, easy to diff.
+- **By AI.** Hand the helper API to an agent that can drive your
+  browser (e.g., [Tidewave Web](https://tidewave.ai)'s `browser_eval`,
+  or any equivalent in-browser evaluator). The agent runs the demo live
+  while you watch; when you're happy, save an Elixir script that emits
+  the same JS calls the agent ran.
+
+The runtime dependency is `phoenix_live_view` and nothing more — no LLM
+gateway, no API keys, no internet at replay time.
 
 ## What it isn't
 
@@ -27,12 +33,13 @@ This is **not** a guided-tour library like
 [driver.js](https://driverjs.com). Those wait for the user to click each
 step in turn. `demo_director` is the opposite: the runtime *is* the
 clicker. The user watches; the demo plays itself, end-to-end. Use it for
-sales demos, screencast replacement, onboarding videos that you want to
-keep in sync with the live app, and quick "look at this feature" links you
-can paste into Slack.
+sales demos, onboarding walkthroughs you want to keep in sync with the
+live app, and quick "look at this feature" links you can paste into
+Slack.
 
 If you want a tour where the user drives, use shepherd / driver / intro.
-If you want a movie of your app that runs against the real DOM, use this.
+If you want a script that plays your app autonomously against the real
+DOM, use this.
 
 ## What's in the package
 
@@ -54,16 +61,6 @@ If you want a movie of your app that runs against the real DOM, use this.
 - **An Igniter-based install task** — `mix igniter.install demo_director` —
   that wires the router macro and seeds your `AGENTS.md` / `CLAUDE.md`
   with the agent contract.
-
-## Two ways to drive a demo
-
-1. **Live, by an agent.** The agent emits helper calls into Tidewave Web's
-   `browser_eval` tab as the user prompts a tour. Useful for exploration
-   and for authoring.
-2. **Replayable, from a saved `.exs`.** Once a demo is good, save the call
-   sequence to `priv/demos/<name>.exs`. Anyone can replay it from
-   `<mount>` (one click) or `mix demo_director.play <name>` (one
-   command) — no agent in the loop, no LLM in the runtime path.
 
 Selectors are passed through to `document.querySelector` — pick whatever
 already-stable handle the host markup gives you (an id, an attribute,
@@ -178,72 +175,6 @@ import DemoDirector.HEEx
 
 See **Selector contract** below for the resolver order.
 
-### Direct a demo live (with an AI agent)
-
-If you have Tidewave Web or any other tool that gives an AI agent a
-`browser.eval`-equivalent surface, the agent can drive a demo live. Paste a
-sequence of helper calls (the agent's prompts produce these for you):
-
-```js
-window.DemoDirector.subtitle("Let's add a prescription.");
-await new Promise(r => setTimeout(r, 1500));
-window.DemoDirector.highlight("save-prescription");
-await new Promise(r => setTimeout(r, 800));
-await window.DemoDirector.fillTyped("medication-search", "Atenolol", 35);
-await new Promise(r => setTimeout(r, 1200));
-window.DemoDirector.click("save-prescription");
-```
-
-Or generated from Elixir:
-
-```elixir
-[
-  DemoDirector.subtitle("Let's add a prescription."),
-  DemoDirector.wait(1500),
-  DemoDirector.highlight("save-prescription"),
-  DemoDirector.wait(800),
-  DemoDirector.fill_typed("medication-search", "Atenolol"),
-  DemoDirector.wait(1200),
-  DemoDirector.click("save-prescription")
-]
-|> Enum.join("\n")
-```
-
-### Replay a saved demo
-
-Once a demo is good, save it to `priv/demos/<name>.exs`. The first comments
-in the file double as metadata:
-
-```elixir
-# Demo: add a prescription for Mrs. Lee.
-# @start_at "/patients/mrs-lee"
-
-alias DemoDirector, as: DD
-
-steps = [
-  DD.subtitle("Let's add a prescription."),
-  DD.wait(1500),
-  DD.highlight("add-prescription-button"),
-  DD.wait(800),
-  DD.click("add-prescription-button"),
-  # …
-]
-
-IO.puts(Enum.join(steps, "\n"))
-```
-
-Then either:
-
-- **Open `<mount>`** in your browser (e.g.
-  `http://localhost:4000/dev/demo-director`) to see every saved demo with
-  a Play button. Clicking Play navigates the browser to the demo's
-  `@start_at` and runs it. (`<mount>/demos` works too — same listing.)
-- **Run `mix demo_director.play <name>`** from a second terminal. The task
-  prints a clickable URL like
-  `http://localhost:4000/dev/demo-director/demos/<name>/play`. Opening it
-  stashes the demo in `sessionStorage`, redirects to `@start_at`, and the
-  overlay there picks it up on load.
-
 ### Author a demo by hand
 
 You don't need an agent to write a demo — the helpers compose like any
@@ -312,6 +243,72 @@ Two things to know:
 
 Test by saving and opening `<mount>/demos`. The new entry shows up
 automatically.
+
+### Direct a demo live (with an AI agent)
+
+If you have Tidewave Web or any other tool that gives an AI agent a
+`browser.eval`-equivalent surface, the agent can drive a demo live. Paste a
+sequence of helper calls (the agent's prompts produce these for you):
+
+```js
+window.DemoDirector.subtitle("Let's add a prescription.");
+await new Promise(r => setTimeout(r, 1500));
+window.DemoDirector.highlight("save-prescription");
+await new Promise(r => setTimeout(r, 800));
+await window.DemoDirector.fillTyped("medication-search", "Atenolol", 35);
+await new Promise(r => setTimeout(r, 1200));
+window.DemoDirector.click("save-prescription");
+```
+
+Or generated from Elixir:
+
+```elixir
+[
+  DemoDirector.subtitle("Let's add a prescription."),
+  DemoDirector.wait(1500),
+  DemoDirector.highlight("save-prescription"),
+  DemoDirector.wait(800),
+  DemoDirector.fill_typed("medication-search", "Atenolol"),
+  DemoDirector.wait(1200),
+  DemoDirector.click("save-prescription")
+]
+|> Enum.join("\n")
+```
+
+### Replay a saved demo
+
+Once a demo is good, save it to `priv/demos/<name>.exs`. The first comments
+in the file double as metadata:
+
+```elixir
+# Demo: add a prescription for Mrs. Lee.
+# @start_at "/patients/mrs-lee"
+
+alias DemoDirector, as: DD
+
+steps = [
+  DD.subtitle("Let's add a prescription."),
+  DD.wait(1500),
+  DD.highlight("add-prescription-button"),
+  DD.wait(800),
+  DD.click("add-prescription-button"),
+  # …
+]
+
+IO.puts(Enum.join(steps, "\n"))
+```
+
+Then either:
+
+- **Open `<mount>`** in your browser (e.g.
+  `http://localhost:4000/dev/demo-director`) to see every saved demo with
+  a Play button. Clicking Play navigates the browser to the demo's
+  `@start_at` and runs it. (`<mount>/demos` works too — same listing.)
+- **Run `mix demo_director.play <name>`** from a second terminal. The task
+  prints a clickable URL like
+  `http://localhost:4000/dev/demo-director/demos/<name>/play`. Opening it
+  stashes the demo in `sessionStorage`, redirects to `@start_at`, and the
+  overlay there picks it up on load.
 
 ## Try the example app
 
@@ -395,15 +392,52 @@ If you want stricter prod stripping, wrap your `demo_id/1` call sites in
 your own `Mix.env() == :dev` block; this helper deliberately stays
 side-effect-free.
 
+## Security
+
+The threat model is "trusted dev environment, untrusted everything
+else." The URL surface (`<mount>/demos/<name>/play`, `<mount>/play`,
+the demos listing) is small and tamper-resistant in well-understood
+ways; the trust ultimately rests on filesystem and network boundaries
+the host app already enforces.
+
+- **URL surface tamper-resistance.** The `name` segment of
+  `<mount>/demos/<name>/play` is matched against an enumerated list
+  of `.exs` files in `priv/demos/` (or `dev/priv/demos/`). It is
+  never concatenated into a filesystem path, so URL-encoded path
+  traversal cannot read or evaluate files outside those directories.
+- **`Code.eval_file` is the primary trust boundary.** Demos are
+  Elixir scripts; loading one runs the script in the host app's
+  BEAM (the script's `IO.puts` is what produces the JS). Anyone with
+  write access to `priv/demos/*.exs` therefore has BEAM code
+  execution on the dev server. Don't accept demo scripts from
+  untrusted contributors without reading them first.
+- **Helpers produce safe JS by convention, not by enforcement.** The
+  six helpers (`subtitle/1`, `highlight/1`, `fill/2`, `fill_typed/3`,
+  `click/1`, `wait/1`) emit a bounded vocabulary of
+  `window.DemoDirector.*(...)` calls with JSON-encoded arguments. But
+  the runtime ultimately `eval`s whatever string the script writes
+  to stdout — a script that calls `IO.puts("evil()")` instead of the
+  helpers will get its raw JS evaluated in the browser. A future
+  release may move the runtime to a structured-command dispatch (no
+  client-side `eval`); for now, the safety property is "stick to the
+  helpers."
+- **Playback POST is localhost-only.** `<mount>/play` (the endpoint
+  `mix demo_director.play` broadcasts to) rejects non-loopback
+  remote IPs. An attacker on a separate host cannot cause arbitrary
+  JS to be evaluated by overlay subscribers.
+- **`dev_routes` is what keeps the integration out of prod.** None
+  of the routes above compile when the host app's
+  `Application.compile_env(:my_app, :dev_routes)` resolves false at
+  compile time. Keeping that flag off in every environment except
+  development is the load-bearing operational discipline.
+
 ## Caveats
 
-**Demos write real records.** This is not a dry run against your DB. A
-demo that types into a form and clicks Submit creates real records, sends
-real emails, queues real jobs. Keep the package gated behind `:dev_routes`
-(or your equivalent), and only enable it in environments where it's safe
-for forms to hit the real data layer. A sandboxed demo-session primitive
-(transactional rollback at the end of a demo, throwaway test data) is on
-the deferred-features list.
+**Treat automated demos the same way you treat manual ones.** Demo
+interactions (e.g. submitting a form) can write real records, send
+real emails, and queue real jobs. The installer wires the package
+behind the standard Phoenix `dev_routes` flag; keep that gate in
+place in environments where data integrity and side effects matter.
 
 **Localhost-only playback by default.** The `<mount>/play` HTTP endpoint
 that receives broadcasts from `mix demo_director.play` rejects

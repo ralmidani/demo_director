@@ -1,7 +1,7 @@
 defmodule DemoDirector.MixProject do
   use Mix.Project
 
-  @version "0.1.5"
+  @version "0.1.6"
   @source_url "https://github.com/ralmidani/demo_director"
 
   def project do
@@ -48,7 +48,7 @@ defmodule DemoDirector.MixProject do
   end
 
   defp description do
-    "Narrated, highlighted, animated demos for Phoenix LiveView — author with Tidewave and play right in your app."
+    "Reproducible, replayable demos for Phoenix LiveView — author reusable scripts, with or without AI."
   end
 
   defp package do
@@ -64,7 +64,29 @@ defmodule DemoDirector.MixProject do
     [
       main: "readme",
       extras: ["README.md", "CHANGELOG.md", "LICENSE.md"],
-      source_ref: "v#{@version}"
+      extra_section: "GUIDES",
+      source_ref: "v#{@version}",
+      groups_for_modules: [
+        Authoring: [
+          DemoDirector,
+          DemoDirector.Components,
+          DemoDirector.HEEx,
+          DemoDirector.Router
+        ],
+        "Mix Tasks": [
+          Mix.Tasks.DemoDirector.Install,
+          Mix.Tasks.DemoDirector.Play
+        ],
+        Internals: [
+          DemoDirector.Demos,
+          DemoDirector.Playback,
+          DemoDirector.PlaybackChannel,
+          DemoDirector.PlaybackSocket,
+          DemoDirector.Plug.Index,
+          DemoDirector.Plug.Play,
+          DemoDirector.Plug.Static
+        ]
+      ]
     ]
   end
 end
