@@ -130,12 +130,10 @@ defmodule DemoDirector.Plug.Index do
               #{if demo.start_at, do: "<span>· starts at <code>#{escape(demo.start_at)}</code></span>", else: ""}
             </p>
           </div>
-          <button
-            type="button"
+          <a
             class="td-row__play"
-            data-td-name="#{escape(demo.name)}"
-            data-td-start-at="#{escape(demo.start_at || "")}"
-          >Play</button>
+            href="#{escape(mount_path)}/demos/#{escape(demo.name)}/play"
+          >Play</a>
         </li>
         """
       end)
@@ -192,16 +190,16 @@ defmodule DemoDirector.Plug.Index do
             color: #ddd6fe;
           }
           .td-row__play {
-            border: 0;
+            display: inline-block;
             padding: 8px 18px;
             background: #ef4444;
             color: white;
             font: inherit;
             font-weight: 600;
             border-radius: 8px;
-            cursor: pointer;
+            text-decoration: none;
           }
-          .td-row__play:hover { background: #dc2626; }
+          .td-row__play:hover { background: #dc2626; text-decoration: none; }
           .td-empty {
             margin-top: 24px;
             padding: 24px;
@@ -235,48 +233,6 @@ defmodule DemoDirector.Plug.Index do
             do: empty_state(),
             else: ~s|<ul class="td-list">#{rows}</ul>|}
         </main>
-
-        <script>
-          const MOUNT = #{Jason.encode!(mount_path)};
-          const SESSION_KEY = "demo_director:pending_demo";
-
-          function resetButtons() {
-            document.querySelectorAll(".td-row__play").forEach((btn) => {
-              btn.disabled = false;
-              btn.textContent = "Play";
-            });
-          }
-
-          // Restoring from the bfcache after Back/Forward leaves buttons
-          // in their "Loading…" disabled state — reset them on restore.
-          window.addEventListener("pageshow", (event) => {
-            if (event.persisted) resetButtons();
-          });
-
-          document.querySelectorAll(".td-row__play").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              const name = btn.dataset.tdName;
-              const startAt = btn.dataset.tdStartAt || "/";
-              btn.disabled = true;
-              btn.textContent = "Loading…";
-
-              try {
-                const resp = await fetch(MOUNT + "/demos/" + encodeURIComponent(name) + ".js");
-                if (!resp.ok) throw new Error("HTTP " + resp.status);
-                const demo = await resp.json();
-
-                // Stash the JS in sessionStorage; the overlay on the
-                // destination page consumes it on load and evals.
-                sessionStorage.setItem(SESSION_KEY, JSON.stringify({ js: demo.js }));
-                window.location.href = startAt;
-              } catch (err) {
-                console.error("[DemoDirector] play failed:", err);
-                btn.textContent = "Failed — retry";
-                btn.disabled = false;
-              }
-            });
-          });
-        </script>
       </body>
     </html>
     """

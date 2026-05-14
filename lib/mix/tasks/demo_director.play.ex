@@ -92,21 +92,41 @@ defmodule Mix.Tasks.DemoDirector.Play do
   # the configured mount paths and returns the live URL. When the
   # server is down (or not yet started), falls back to the package's
   # default mount path so the URL is still useful for copy-paste.
-  defp resolve_play_url(name) do
-    host = host_root()
-    mount_paths = ["/dev/director", "/demo-director", "/director"]
+  @candidate_mount_paths ["/dev/demo-director", "/demo-director"]
 
-    case Enum.find_value(mount_paths, fn mp -> probe_mount(host, mp, name) end) do
+  defp resolve_play_url(name) do
+    do_resolve_play_url(name, host_root(), &probe_mount/3)
+  end
+
+  defp do_resolve_play_url(name, host, probe_fn) do
+    case Enum.find_value(@candidate_mount_paths, fn mp -> probe_fn.(host, mp, name) end) do
       nil ->
-        # No probe succeeded. Either the server is down, or the host
-        # has a non-standard mount. Fall back to the package default
-        # and warn — the URL will still work once the server's up,
-        # provided the mount matches the default.
-        {host <> "/demo-director/demos/" <> name <> "/play", :down}
+        # No probe succeeded. Either the server is down, or the host has
+        # a non-standard mount. Fall back to the installer's default
+        # (the first candidate) so the URL is useful for copy-paste once
+        # the server is up.
+        {host <> hd(@candidate_mount_paths) <> "/demos/" <> name <> "/play", :down}
 
       url ->
         {url, :up}
     end
+  end
+
+  @doc false
+  # Exposed for testing. Returns the candidate mount paths the task
+  # probes before falling back to the installer default. Order matters —
+  # the installer's default (`/dev/demo-director`) is tried first so a
+  # probe against a stock install short-circuits the rest.
+  def __candidate_mount_paths__, do: @candidate_mount_paths
+
+  @doc false
+  # Exposed for testing. Resolves the play URL using an injectable probe
+  # function, so tests can simulate a reachable / unreachable server
+  # without standing up a real HTTP server. `probe_fn` takes
+  # `(host, mount_path, name)` and returns either a URL string (probe
+  # succeeded) or `nil` (probe missed).
+  def __resolve_play_url__(name, host, probe_fn) do
+    do_resolve_play_url(name, host, probe_fn)
   end
 
   # Probe the per-demo play URL with HEAD; if it 200s, that mount is

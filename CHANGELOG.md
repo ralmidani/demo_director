@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-05-13
+
+### Fixed
+
+- `mix demo_director.play <name>` printed a non-mountable URL against
+  any installer-default install. The Mix task probed
+  `["/dev/director", "/demo-director", "/director"]` and fell back to
+  `/demo-director`, none of which match what the v0.1.3+ installer
+  produces (`/dev/demo-director`). Against a stock install every probe
+  404'd and the printed URL was unreachable. Candidate list trimmed to
+  `["/dev/demo-director", "/demo-director"]` with the installer
+  default tried first; fallback URL derived from the head of the list
+  so it cannot drift again. Regression tests pin the contract.
+
+### Changed
+
+- Listing-page Play button is now a real `<a href="...">` link
+  (pointing at `<mount>/demos/<name>/play`) instead of a `<button>`
+  with inline-JS click handler that fetched `<mount>/demos/<name>.js`
+  and stashed in `sessionStorage`. The redirect route always handled
+  the stash + navigate; the listing page just duplicated the work
+  client-side. Hover now shows the URL, right-click → Copy link works,
+  and the listing page no longer ships ~25 lines of inline JS.
+- README framing realigned: leads with the saved-script artifact
+  rather than the AI-loop. "Two authoring paths, same output" makes
+  hand-authoring an equal peer to AI-authoring rather than an
+  afterthought. "What it isn't" drops "screencast replacement" copy
+  that implied this is a recording tool. Caveats rewritten as
+  "Treat automated demos the same way you treat manual ones."
+- README's "Author a demo by hand" section now precedes the AI-driven
+  section to match the new authoring-paths order.
+- `dev.exs` example app now mounts at `/dev/demo-director` (the
+  installer default) instead of `/dev/director` (a legacy path that
+  predated v0.1.3's URL alignment). Brings the example app in line
+  with what `mix demo_director.play` probes by default.
+
+### Added
+
+- README **Security** section documents the threat model honestly:
+  URL surface tamper-resistance, `Code.eval_file` as the primary
+  trust boundary, helpers' safe-JS-by-convention status (not
+  enforcement), localhost-only playback POST, and the
+  `dev_routes` compile-time gate.
+
 ## [0.1.5] - 2026-05-10
 
 ### Fixed

@@ -1272,7 +1272,7 @@ defmodule ExampleWeb.Router do
     import DemoDirector.Router
 
     scope "/dev" do
-      demo_director "/director"
+      demo_director "/demo-director"
     end
   end
 end
